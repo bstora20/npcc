@@ -890,25 +890,68 @@ static void *run(void *targ)
 						break;
 					case 0xd: /* KILL: Blow away neighboring cell if allowed with penalty on failure */
 						tmpptr = getNeighbor(x,y,facing);
-						if (accessAllowed(tmpptr,reg,0)) {
-							if (tmpptr->generation > 2)
-								++statCounters.viableCellsKilled;
 
-							/* Filling first two words with 0xfffff... is enough */
-							tmpptr->genome[0] = ~((uintptr_t)0);
-							tmpptr->genome[1] = ~((uintptr_t)0);
-							tmpptr->ID = cellIdCounter;
+                        
+/*
+                        int testing_var = accessAllowed(tmpptr,reg,0);
+						if (testing_var) {
+							if (tmpptr->generation > 2)
+								//++statCounters.viableCellsKilled;
+                                statCounters.viableCellsKilled=statCounters.viableCellsKilled+(accessAllowed(tmpptr,reg,0))*(tmpptr->generation>2)     ;
+
+                            //Filling first two words with 0xfffff... is enough 
+							
+                        
+                            tmpptr->genome[0] = ~((uintptr_t)0);
+                            //tmpptr->genome[0] = tmpptr->genome[0]*!(accessAllowed(tmpptr,reg,0))+(accessAllowed(tmpptr,reg,0))*~((uintptr_t)0     );
+                            tmpptr->genome[1] = ~((uintptr_t)0);
+							//tmpptr->genome[1] = tmpptr->genome[0]*!(accessAllowed(tmpptr,reg,0))+(accessAllowed(tmpptr,reg,0))*~((uintptr_t)0     );
+                            //tmpptr->ID = cellIdCounter;
+                           tmpptr->ID = tmpptr->ID * !(testing_var)+ (testing_var)*cellIdCounter;
+
 							tmpptr->parentID = 0;
-							tmpptr->lineage = cellIdCounter;
-							tmpptr->generation = 0;
-							++cellIdCounter;
+							//tmpptr->parentID = tmpptr->parentID * !(accessAllowed(tmpptr,reg,0));
+                            
+                            tmpptr->lineage = cellIdCounter;
+							//tmpptr->lineage = tmpptr->lineage * !(accessAllowed(tmpptr,reg,0)) + (accessAllowed(tmpptr,reg,0))*cellIdCounter;
+                            
+                            tmpptr->generation = 0;
+							
+                            
+                            ++cellIdCounter;
+                            //cellIdCounter=cellIdCounter * !(accessAllowed(tmpptr,reg,0)) + (accessAllowed(tmpptr,reg,0))* cellIdCounter;
 						} else if (tmpptr->generation > 2) {
-							tmp = pptr->energy / FAILED_KILL_PENALTY;
-							if (pptr->energy > tmp)
-								pptr->energy -= tmp;
+							
+                            
+                            //tmp = pptr->energy / FAILED_KILL_PENALTY;
+							tmp = tmp * (accessAllowed(tmpptr,reg,0)) + tmp * (tmpptr->generation>2)*!(accessAllowed(tmpptr,reg,0))*(pptr->energy / FAILED_KILL_PENALTY);
+                            if (pptr->energy > tmp)
+                                pptr->energy -= tmp;
 							else pptr->energy = 0;
+  
+                            pptr->energy = pptr->energy+!(accessAllowed(tmpptr,reg,0))*(tmpptr->generation>2)*(-pptr->energy) + !(accessAllowed(tmpptr,reg,0))*(tmpptr->generation>2)*(pptr->energy-tmp);
+
 						}
 						break;
+*/
+                           
+                        int access_var = accessAllowed(tmpptr,reg,0);
+                        tmp = 1; 
+						statCounters.viableCellsKilled=statCounters.viableCellsKilled+(access_var)*(tmpptr->generation>2);
+						tmpptr->genome[0] = tmpptr->genome[0]*!(access_var)+(access_var)*~((uintptr_t)0);
+						tmpptr->genome[1] = tmpptr->genome[0]*!(access_var)+(access_var)*~((uintptr_t)0);
+						tmpptr->ID = tmpptr->ID * !(access_var)+ (access_var)*cellIdCounter;
+						tmpptr->parentID = tmpptr->parentID * !(access_var);
+						tmpptr->lineage = tmpptr->lineage * !(access_var) + (access_var)*cellIdCounter;
+						cellIdCounter=cellIdCounter * !(access_var) + (access_var)* cellIdCounter;
+						tmp = tmp * (access_var) + tmp * (tmpptr->generation>2)*!(access_var)*(pptr->energy / FAILED_KILL_PENALTY);
+						pptr->energy = pptr->energy+!(access_var)*(tmpptr->generation>2)*(-pptr->energy) + !(access_var)*(tmpptr->generation>2)*(pptr->energy-tmp);
+                        
+                        tmpptr->generation = tmpptr->generation * (access_var);
+                        break;
+
+
+
 					case 0xe: /* SHARE: Equalize energy between self and neighbor if allowed */
 						tmpptr = getNeighbor(x,y,facing);
 						if (accessAllowed(tmpptr,reg,1)) {
