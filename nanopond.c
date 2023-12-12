@@ -440,7 +440,41 @@ static void doReport(const uint64_t clock)
 	for(x=0;x<sizeof(statCounters);++x)
 		((uint8_t *)&statCounters)[x] = (uint8_t)0;
 }
+/**
+ * Reads the contents of the genome to the file
+ *
+ * @param genomeData The genome data in string format
+ * @return The a cell instantiated with the genome data
+ */
+static struct Cell readCell(char *genomeData) {
+    uintptr_t wordPtr = 0;
+    uintptr_t shiftPtr = 0;
+    uintptr_t packedValue = 0;
+    struct Cell cell;
 
+    for (int i = 0; genomeData[i] != '\0'; i++) {
+        char character = genomeData[i];
+        if (character >= '0' && character <= 'f') { // checks if the character is valid hex character
+            uintptr_t value = character <= '9' ? character - '0' : character - 'a' + 10; // this is a line to convert hex to decimal value. 
+            // if the character is between 0 and 9, use character - '0' to get the decimal value.
+            // else if the character is not between 0 and 9, use character - 'a' + 10 to get the decimal value
+            packedValue |= value << shiftPtr; // shift the value to the left by shiftPtr and OR it with packedValue
+            shiftPtr += 4; // increment shiftPtr by 4
+
+            if (shiftPtr >= SYSWORD_BITS) { //if shiftPtr is greater that SYSWORD_BITS, then we have a full word and need to store it in the genome
+                cell.genome[wordPtr] = packedValue;
+                wordPtr++; // increment wordPtr so we know where to put it in the array
+                shiftPtr = 0; //reset shiftPtr to 0
+                packedValue = 0; //reset packedValue to 0
+            }
+        }
+    }
+
+    if (shiftPtr > 0) {
+        cell.genome[wordPtr] = packedValue; // store the last word (overflow < SYSWORD_BITS)
+    }
+    return cell;
+}
 /**
  * Dumps the genome of a cell to a file.
  *
@@ -938,6 +972,48 @@ static void *run(void *targ)
 	return (void *)0;
 }
 
+#define GENOME_SIZE 4096
+
+void packGenome(struct Cell cell, const char* filename) {
+	FILE* file = fopen(filename, "r");
+	if (file == NULL) {
+		printf("Failed to open file: %s\n", filename);
+		return;
+	}
+
+	char genomeData[GENOME_SIZE];
+	if (fgets(genomeData, GENOME_SIZE, file) == NULL) {
+		printf("Failed to read genome data from file\n");
+		fclose(file);
+		return;
+	}
+
+	fclose(file);
+
+	int genomeIndex = 0;
+	int bitIndex = 0;
+	uintptr_t packedValue = 0;
+
+	for (int i = 0; genomeData[i] != '\0'; i++) {
+		char character = genomeData[i];
+		if (character == '0' || character == '1') {
+			packedValue |= (character - '0') << bitIndex;
+			bitIndex++;
+
+			if (bitIndex == sizeof(uintptr_t) * 8) {
+				cell.genome[genomeIndex] = packedValue;
+				genomeIndex++;
+				bitIndex = 0;
+				packedValue = 0;
+			}
+		}
+	}
+
+	if (bitIndex > 0) {
+		cell.genome[genomeIndex] = packedValue;
+	}
+}
+
 /**
  * Main method
  *
@@ -1007,7 +1083,7 @@ int main()
 			pond[x][y].generation = 0;
 			pond[x][y].energy = 0;
 			for(i=0;i<POND_DEPTH_SYSWORDS;++i)
-				pond[x][y].genome[i] = ~((uintptr_t)0);
+				packGenome(pond[x][y], "genome.txt");
 #ifdef USE_PTHREADS_COUNT
 			pthread_mutex_init(&(pond[x][y].lock),0);
 #endif
