@@ -778,12 +778,18 @@ static void *run(void *targ)
 				((inst == 0xe)* (pptr->energy + tmpptr->energy));
 
 				pptr->energy=
-				(inst == 0x0 || inst == 0x1 || inst == 0x2 || inst == 0x3 || inst == 0x4 || inst == 0x5 || inst == 0x6 || inst == 0x7 || inst == 0x8 || inst == 0xa || inst == 0xb || inst == 0xc || inst == 0xe || inst == 0xf)*(pptr->energy)+
-				((inst == 0xd)*(pptr->energy+!(access_neg)*(tmpptr->generation>2)*(-pptr->energy) + !(access_neg)*(tmpptr->generation>2)*(pptr->energy-tmp)));
+				(inst == 0x0 || inst == 0x1 || inst == 0x2 || inst == 0x3 || inst == 0x4 || inst == 0x5 || inst == 0x6 || inst == 0x7 || inst == 0x8 || inst == 0xa || inst == 0xb || inst == 0xc || inst == 0xf)*(pptr->energy)+
+				((inst == 0xd)*(pptr->energy+!(access_neg)*(tmpptr->generation>2)*(-pptr->energy) + !(access_neg)*(tmpptr->generation>2)*(pptr->energy-tmp)))+
+				((inst == 0xe)*((access_pos * (tmp - (access_pos * (tmp / 2) + (1 - access_pos) * tmpptr->energy)) + (1 - access_pos) * pptr->energy)));
 
 				tmpptr->generation=
 				(inst == 0x0 || inst == 0x1 || inst == 0x2 || inst == 0x3 || inst == 0x4 || inst == 0x5 || inst == 0x6 || inst == 0x7 || inst == 0x8 || inst == 0xa || inst == 0xb || inst == 0xc || inst == 0xe || inst == 0xf)*(tmpptr->generation)+
 				((inst == 0xd)*(tmpptr->generation * (access_neg)));
+
+				tmpptr->energy=
+				(inst == 0x0 || inst == 0x1 || inst == 0x2 || inst == 0x3 || inst == 0x4 || inst == 0x5 || inst == 0x6 || inst == 0x7 || inst == 0x8 || inst == 0xa || inst == 0xb || inst == 0xc || inst == 0xd || inst == 0xf)*(tmpptr->energy)+
+				((inst == 0xe)*((access_pos * (tmp / 2) + (1 - access_pos) * tmpptr->energy)));
+
 
 				/* Keep track of execution frequencies for each instruction */
 				statCounters.instructionExecutions[inst] += 1.0;
@@ -830,8 +836,8 @@ static void *run(void *targ)
 						//int access_pos = accessAllowed(tmpptr,reg,1);
 						//tmp = pptr->energy + tmpptr->energy;
 						//statCounters.viableCellShares += access_pos * (tmpptr->generation > 2);
-						tmpptr->energy = (access_pos * (tmp / 2) + (1 - access_pos) * tmpptr->energy);
-						pptr->energy = (access_pos * (tmp - (access_pos * (tmp / 2) + (1 - access_pos) * tmpptr->energy)) + (1 - access_pos) * pptr->energy);
+						//tmpptr->energy = (access_pos * (tmp / 2) + (1 - access_pos) * tmpptr->energy);
+						//pptr->energy = (access_pos * (tmp - (access_pos * (tmp / 2) + (1 - access_pos) * tmpptr->energy)) + (1 - access_pos) * pptr->energy);
 						break; 
 					case 0xf: /* STOP: End execution */
 						break;
