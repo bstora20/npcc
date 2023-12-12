@@ -297,6 +297,14 @@ static inline uintptr_t getRandom() {
     in = (in + 1) % BUFFER_SIZE;  // Wrap around to 0 when index reaches BUFFER_SIZE
     return num;
 }
+static inline uintptr_t getRandomRollback(uintptr_t rollback) {
+    uintptr_t num = buffer[in];
+    last_random_number = num;  // Store the last random number
+    buffer[in] = getRandomPre();  // Generate a new random number and add it to the buffer
+    in = ((in + 1) % BUFFER_SIZE) * rollback + in * (!rollback);  // Roll back if rollback is zero
+    return num;
+}
+
 /* Pond depth in machine-size words.  This is calculated from
  * POND_DEPTH and the size of the machine word. (The multiplication
  * by two is due to the fact that there are two four-bit values in
@@ -450,9 +458,9 @@ static inline struct Cell *getNeighbor(const uintptr_t x, const uintptr_t y, con
     return &pond[newX][newY];
 }
 
-static inline int accessAllowed(struct Cell *const c2, const uintptr_t c1guess, int sense)
+static inline int accessAllowed(struct Cell *const c2, const uintptr_t c1guess, int sense, uintptr_t rollback)
 {
-    uintptr_t random = (uintptr_t)(getRandom() & 0xf);
+    uintptr_t random = (uintptr_t)(getRandomRollback(rollback) & 0xf);
     return ((((random >= BITS_IN_FOURBIT_WORD[(c2->genome[0] & 0xf) ^ (c1guess & 0xf)]) || !c2->parentID) & sense) | (((random <= BITS_IN_FOURBIT_WORD[(c2->genome[0] & 0xf) ^ (c1guess & 0xf)]) || !c2->parentID) & ~sense));
 }
 
@@ -720,11 +728,19 @@ static void *run(void *targ)
 				* set is 0xd, 0xe
 				*/
 				tmpptr = getNeighbor(x,y,facing);
-				int access_neg = accessAllowed(tmpptr,reg,0);
-				int access_pos = accessAllowed(tmpptr,reg,1);
+				
 				int access_neg_used = 0;
 				int access_pos_used = 0;
+				access_pos_used =
+				(inst == 0x0 || inst == 0x1 || inst == 0x2 || inst == 0x3 || inst == 0x4 || inst == 0x5 || inst == 0x6 || inst == 0x7 || inst == 0x8 || inst == 0xa || inst == 0xb || inst == 0xc || inst == 0xe || inst == 0xf)*(access_pos_used)+
+				((inst == 0xe)*(1));
 
+				access_neg_used =
+				(inst == 0x0 || inst == 0x1 || inst == 0x2 || inst == 0x3 || inst == 0x4 || inst == 0x5 || inst == 0x6 || inst == 0x7 || inst == 0x8 || inst == 0xa || inst == 0xb || inst == 0xc || inst == 0xd || inst == 0xf)*(access_pos_used)+
+				((inst == 0xd)*(1));
+				
+				int access_neg = accessAllowed(tmpptr,reg,0, access_neg_used);
+				int access_pos = accessAllowed(tmpptr,reg,1, acc);
 
 				statCounters.viableCellsKilled=
 				(inst == 0x0 || inst == 0x1 || inst == 0x2 || inst == 0x3 || inst == 0x4 || inst == 0x5 || inst == 0x6 || inst == 0x7 || inst == 0x8 || inst == 0xa || inst == 0xb || inst == 0xc || inst == 0xf)*(statCounters.viableCellsKilled)+
@@ -772,7 +788,6 @@ static void *run(void *targ)
 				/* Keep track of execution frequencies for each instruction */
 				statCounters.instructionExecutions[inst] += 1.0;
 
-				
 
 				switch(inst) {
 					case 0x0: /* ZERO: Zero VM state registers */
