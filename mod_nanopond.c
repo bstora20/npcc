@@ -272,45 +272,39 @@ static uintptr_t last_random_number;
 
 
 volatile uint64_t prngState[2];
-static inline uintptr_t getRandomPre()
+static inline uintptr_t getRandomPre(int rollback)
 {
     // https://en.wikipedia.org/wiki/Xorshift#xorshift.2B
     uint64_t x = prngState[0];
     const uint64_t y = prngState[1];
-    prngState[0] = y; 
+    prngState[0] = prngState[0] * rollback + !rollback * y; 
     x ^= x << 23;
     const uint64_t z = x ^ y ^ (x >> 17) ^ (y >> 26); 
-    prngState[1] = z; 
+    prngState[1] = prngState[1] * rollback + !rollback * z; 
     return (uintptr_t)(z + y);
 }
-<<<<<<< HEAD
-=======
 
 void precalculate_random_numbers() {
     for (int i = 0; i < BUFFER_SIZE; i++) {
-        buffer[i] = getRandomPre();
+        buffer[i] = getRandomPre(1);
     }
 }
 
 static inline uintptr_t getRandom() {
     uintptr_t num = buffer[in];
     last_random_number = num;  // Store the last random number
-	buffer[in] = getRandomPre();  // Generate a new random number and add it to the buffer
+	buffer[in] = getRandomPre(1);  // Generate a new random number and add it to the buffer
     in = (in + 1) % BUFFER_SIZE;  // Wrap around to 0 when index reaches BUFFER_SIZE
     return num;
 }
-<<<<<<< HEAD
->>>>>>> 8c798a3f73538f962f5f5aa7b48c55e2b0c41a70
-=======
 static inline uintptr_t getRandomRollback(uintptr_t rollback) {
     uintptr_t num = buffer[in];
     last_random_number = num;  // Store the last random number
-    buffer[in] = getRandomPre();  // Generate a new random number and add it to the buffer
+    buffer[in] = getRandomPre(rollback);  // Generate a new random number and add it to the buffer
     in = ((in + 1) % BUFFER_SIZE) * rollback + in * (!rollback);  // Roll back if rollback is zero
     return num;
 }
 
->>>>>>> 93a2376d686d1ec7aa54294af51ce879c85ec1f4
 /* Pond depth in machine-size words.  This is calculated from
  * POND_DEPTH and the size of the machine word. (The multiplication
  * by two is due to the fact that there are two four-bit values in
@@ -747,7 +741,7 @@ static void *run(void *targ)
 				((inst == 0xd)*(1));
 				
 				int access_neg = accessAllowed(tmpptr,reg,0, access_neg_used);
-				int access_pos = accessAllowed(tmpptr,reg,1, access_pos_used);
+				int access_pos = accessAllowed(tmpptr,reg,1, access_pos_used); 
 
 				statCounters.viableCellsKilled=
 				(inst == 0x0 || inst == 0x1 || inst == 0x2 || inst == 0x3 || inst == 0x4 || inst == 0x5 || inst == 0x6 || inst == 0x7 || inst == 0x8 || inst == 0x9 || inst == 0xa || inst == 0xb || inst == 0xc || inst == 0xf)*(statCounters.viableCellsKilled)+
@@ -838,7 +832,7 @@ static void *run(void *targ)
 						break;
 					case 0xd: /* KILL: Blow away neighboring cell if allowed with penalty on failure */
 						tmpptr = getNeighbor(x,y,facing);
-						int access_var = accessAllowed(tmpptr,reg,0);
+						int access_var = accessAllowed(tmpptr,reg,0,0); 
                         statCounters.viableCellsKilled=statCounters.viableCellsKilled+(access_var)*(tmpptr->generation>2);
                         tmpptr->genome[0] = tmpptr->genome[0]*!(access_var)+(access_var)*~((uintptr_t)0);
                         tmpptr->genome[1] = tmpptr->genome[0]*!(access_var)+(access_var)*~((uintptr_t)0);
@@ -898,7 +892,7 @@ static void *run(void *targ)
 		if ((outputBuf[0] & 0xff) != 0xff) {
 			tmpptr = getNeighbor(x,y,facing);
 
-			if ((tmpptr->energy)&&accessAllowed(tmpptr,reg,0, 1)) {
+			if ((tmpptr->energy)&&accessAllowed(tmpptr,reg,0,0)) {
 				/* Log it if we're replacing a viable cell */
 				if (tmpptr->generation > 2)
 					++statCounters.viableCellsReplaced;
