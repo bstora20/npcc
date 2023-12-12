@@ -803,24 +803,12 @@ static void *run(void *targ)
 					case 0xc: /* XCHG: Skip next instruction and exchange value of register with it */
 //                        wordPtr=wordPtr*((shiftPtr+4<SYSWORD_BITS)||(wordPtr+1<POND_DEPTH_SYSWORDS))+((shiftPtr+4>=SYSWORD_BITS)&&(wordPtr+1<POND_DEPTH_SYSWORDS))+EXEC_START_WORD*((wordPtr+1>=POND_DEPTH_SYSWORDS)&&(shiftPtr+4>=SYSWORD_BITS));
 //                        shiftPtr=(shiftPtr+4)+(shiftPtr+4>=SYSWORD_BITS)*(-shiftPtr-4);
-						tmp = reg;
+						//tmp = reg;
 						reg = (pptr->genome[wordPtr] >> shiftPtr) & 0xf;
 						pptr->genome[wordPtr]=((pptr->genome[wordPtr]&~(((uintptr_t)0xf) << shiftPtr))|tmp << shiftPtr);
 						currentWord = pptr->genome[wordPtr];
 						break;
 					case 0xd: /* KILL: Blow away neighboring cell if allowed with penalty on failure */
-						//tmpptr = getNeighbor(x,y,facing);
-						int access_var = accessAllowed(tmpptr,reg,0);
-                        statCounters.viableCellsKilled=statCounters.viableCellsKilled+(access_var)*(tmpptr->generation>2);
-                        tmpptr->genome[0] = tmpptr->genome[0]*!(access_var)+(access_var)*~((uintptr_t)0);
-                        tmpptr->genome[1] = tmpptr->genome[0]*!(access_var)+(access_var)*~((uintptr_t)0);
-                        tmpptr->ID = tmpptr->ID * !(access_var)+ (access_var)*cellIdCounter;
-                        tmpptr->parentID = tmpptr->parentID * !(access_var);
-                        tmpptr->lineage = tmpptr->lineage * !(access_var) + (access_var)*cellIdCounter;
-                        cellIdCounter=cellIdCounter * !(access_var) + (access_var)* cellIdCounter;
-                        tmp = (access_var) + (tmpptr->generation>2)*!(access_var)*(pptr->energy / FAILED_KILL_PENALTY);
-                        pptr->energy = pptr->energy+!(access_var)*(tmpptr->generation>2)*(-pptr->energy) + !(access_var)*(tmpptr->generation>2)*(pptr->energy-tmp);
-						tmpptr->generation = tmpptr->generation * (access_var);
                         break;
 					case 0xe: /* SHARE: Equalize energy between self and neighbor if allowed */
 						//tmpptr = getNeighbor(x,y,facing);
