@@ -740,7 +740,7 @@ static void *run(void *targ)
 				((inst == 0xd)*(1));
 				
 				int access_neg = accessAllowed(tmpptr,reg,0, access_neg_used);
-				int access_pos = accessAllowed(tmpptr,reg,1, acc);
+				int access_pos = accessAllowed(tmpptr,reg,1, access_pos_used);
 
 				statCounters.viableCellsKilled=
 				(inst == 0x0 || inst == 0x1 || inst == 0x2 || inst == 0x3 || inst == 0x4 || inst == 0x5 || inst == 0x6 || inst == 0x7 || inst == 0x8 || inst == 0xa || inst == 0xb || inst == 0xc || inst == 0xf)*(statCounters.viableCellsKilled)+
