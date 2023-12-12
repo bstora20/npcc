@@ -11,6 +11,6 @@ gui:
 	./nanopond > c1
 	./mod_nanopond_change_rand > c2
 	diff -u c1 c2
-	rm nanopond mod_nanopond_chane_rand c1 c2
+	rm nanopond mod_nanopond_change_rand c1 c2
 clean:
 	rm -f *.o nanopond *.dSYM
