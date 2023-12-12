@@ -523,26 +523,26 @@ static void *run(void *targ)
 		 * entropy into the substrate. This happens every INFLOW_FREQUENCY
 		 * clock ticks. */
 		if (!(clock % INFLOW_FREQUENCY)) {
-			x = getRandom() % POND_SIZE_X;
-			y = getRandom() % POND_SIZE_Y;
+			x = getRandomRollback(1) % POND_SIZE_X;
+			y = getRandom(1) % POND_SIZE_Y;
 			pptr = &pond[x][y];
 			pptr->ID = cellIdCounter;
 			pptr->parentID = 0;
 			pptr->lineage = cellIdCounter;
 			pptr->generation = 0;
 #ifdef INFLOW_RATE_VARIATION
-			pptr->energy += INFLOW_RATE_BASE + (getRandom() % INFLOW_RATE_VARIATION);
+			pptr->energy += INFLOW_RATE_BASE + (getRandomRollback(1) % INFLOW_RATE_VARIATION);
 #else
 			pptr->energy += INFLOW_RATE_BASE;
 #endif /* INFLOW_RATE_VARIATION */
 			for(i=0;i<POND_DEPTH_SYSWORDS;++i) 
-				pptr->genome[i] = getRandom();
+				pptr->genome[i] = getRandomRollback(1);
 			++cellIdCounter;
 		
 		}
 
 		/* Pick a random cell to execute */
-		i = getRandom();
+		i = getRandomRollback(1);
 		x = i % POND_SIZE_X;
 		y = ((i / POND_SIZE_X) >> 1) % POND_SIZE_Y;
 		pptr = &pond[x][y];
@@ -584,8 +584,8 @@ static void *run(void *targ)
 			 * it can have all manner of different effects on the end result of
 			 * replication: insertions, deletions, duplications of entire
 			 * ranges of the genome, etc. */
-			if ((getRandom() & 0xffffffff) < MUTATION_RATE) {
-				tmp = getRandom(); /* Call getRandom() only once for speed */
+			if ((getRandomRollback(1) & 0xffffffff) < MUTATION_RATE) {
+				tmp = getRandomRollback(1); /* Call getRandom() only once for speed */
 				if (tmp & 0x80) /* Check for the 8th bit to get random boolean */
 					inst = tmp & 0xf; /* Only the first four bits are used here */
 				else reg = tmp & 0xf;
