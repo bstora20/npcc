@@ -634,8 +634,8 @@ static void *run(void *targ)
 				(inst==0x0||inst==0x1||inst==0x2||inst==0x3||inst==0x4||inst==0x5||inst==0x7||inst==0x8||inst==0x9||inst==0xa||inst==0xb||inst==0xc||inst==0xd||inst==0xe||inst==0xf)
 				*(pptr->genome[ptr_wordPtr])+((inst==0x6)*((pptr->genome[ptr_wordPtr]&~(((uintptr_t)0xf)<<ptr_shiftPtr))|reg<<ptr_shiftPtr)); 
 				/*
-				* wordPtr
-				* set in 0xa
+				* TODO: wordPtr
+				* set in 0xa, 0xc
 				*/
 				/*
 				* outputBuf[ptr_wordPtr]
