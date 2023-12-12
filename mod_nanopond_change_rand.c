@@ -252,7 +252,7 @@
 /* Define this to use SDL. To use SDL, you must have SDL headers
  * available and you must link with the SDL library when you compile. */
 /* Comment this out to compile without SDL visualization support. */
-// #define USE_SDL 1
+//#define USE_SDL 1
 
 /* Define this to use threads, and how many threads to create */
 // #define USE_PTHREADS_COUNT 4
@@ -278,18 +278,21 @@
 #endif /* _MSC_VER */
 #endif /* USE_SDL */
 
+int rand_counter = -1;
+
 volatile uint64_t prngState[2];
-static inline uintptr_t getRandom()
-{
-	// https://en.wikipedia.org/wiki/Xorshift#xorshift.2B
-	uint64_t x = prngState[0];
-	const uint64_t y = prngState[1];
-	prngState[0] = y;
-	x ^= x << 23;
-	const uint64_t z = x ^ y ^ (x >> 17) ^ (y >> 26);
-	prngState[1] = z;
-	return (uintptr_t)(z + y);
+
+uintptr_t getRandom(int check){
+    uint64_t x = prngState[0];
+    const uint64_t y = prngState[1];
+    prngState[0] = check*prngState[0]+ !check*y;
+    x ^= x << 23;
+    const uint64_t z = x ^ y ^ (x >> 17) ^ (y >> 26);
+    prngState[1] = check*prngState[1]+ !check*z;
+    
+    return (uintptr_t)(z+y);
 }
+
 
 /* Pond depth in machine-size words.  This is calculated from
  * POND_DEPTH and the size of the machine word. (The multiplication
@@ -318,7 +321,7 @@ static const uintptr_t BITS_IN_FOURBIT_WORD[16] = { 0,1,1,2,1,2,2,3,1,2,2,3,2,3,
  * Structure for a cell in the pond
  */
 struct Cell
-{
+        {
 	/* Globally unique cell ID */
 	uint64_t ID;
 	
@@ -480,9 +483,10 @@ static void dumpCell(FILE *file, struct Cell *cell)
 	fprintf(file,"\n");
 }
 #endif
+/*
 static inline struct Cell *getNeighbor(const uintptr_t x,const uintptr_t y,const uintptr_t dir)
 {
-	/* Space is toroidal; it wraps at edges */
+	// Space is toroidal; it wraps at edges 
 	switch(dir) {
 		case N_LEFT:
 			return (x) ? &pond[x-1][y] : &pond[POND_SIZE_X-1][y];
@@ -493,7 +497,20 @@ static inline struct Cell *getNeighbor(const uintptr_t x,const uintptr_t y,const
 		case N_DOWN:
 			return (y < (POND_SIZE_Y-1)) ? &pond[x][y+1] : &pond[x][0];
 	}
-	return &pond[x][y]; /* This should never be reached */
+	return &pond[x][y]; // This should never be reached 
+}
+*/
+static inline struct Cell *getNeighbor(const uintptr_t x, const uintptr_t y, const uintptr_t dir)
+{
+    /* Define the changes in the x and y coordinates for each direction */
+    int dx[] = {-1, 1, 0, 0}; // Changes in x for N_LEFT, N_RIGHT, N_UP, N_DOWN
+    int dy[] = {0, 0, -1, 1}; // Changes in y for N_LEFT, N_RIGHT, N_UP, N_DOWN
+
+    /* Calculate the new coordinates */
+    uintptr_t newX = (x + dx[dir] + POND_SIZE_X) % POND_SIZE_X;
+    uintptr_t newY = (y + dy[dir] + POND_SIZE_Y) % POND_SIZE_Y;
+
+    return &pond[newX][newY];
 }
 
 static inline int accessAllowed(struct Cell *const c2,const uintptr_t c1guess,int sense)
@@ -501,8 +518,48 @@ static inline int accessAllowed(struct Cell *const c2,const uintptr_t c1guess,in
 	/* Access permission is more probable if they are more similar in sense 0,
 	 * and more probable if they are different in sense 1. Sense 0 is used for
 	 * "negative" interactions and sense 1 for "positive" ones. */
-	return sense ? (((getRandom() & 0xf) >= BITS_IN_FOURBIT_WORD[(c2->genome[0] & 0xf) ^ (c1guess & 0xf)])||(!c2->parentID)) : (((getRandom() & 0xf) <= BITS_IN_FOURBIT_WORD[(c2->genome[0] & 0xf) ^ (c1guess & 0xf)])||(!c2->parentID));
+/*	
+	return !!sense * (
+            (
+             (getRandom() & 0xf) >= BITS_IN_FOURBIT_WORD[(c2->genome[0] & 0xf) 
+             ^ 
+             (c1guess & 0xf)])
+            ||(!c2->parentID)
+            ) 
+        +
+       !sense * (
+                ((getRandom() & 0xf) <= BITS_IN_FOURBIT_WORD[(c2->genome[0] & 0xf) ^ (c1guess & 0xf)])
+                ||(!c2->parentID));
+
+  */
+    
+    return sense ? (((getRandom(1) & 0xf) >= BITS_IN_FOURBIT_WORD[(c2->genome[0] & 0xf) ^ (c1guess & 0xf)])||(!c2->parentID)) : (((getRandom(1) & 0xf) <= BITS_IN_FOURBIT_WORD[(c2->genome[0] & 0xf) ^ (c1guess & 0xf)])||(!c2->parentID));
+
 }
+/*
+static inline int accessAllowedNegative(struct Cell *const c2,const uintptr_t c1guess)
+{
+*/
+	/* Access permission is more probable if they are more similar in sense 0,
+	 * and more probable if they are different in sense 1. Sense 0 is used for
+	 * "negative" interactions and sense 1 for "positive" ones. 
+	return (((getRandom() & 0xf) >= BITS_IN_FOURBIT_WORD[(c2->genome[0] & 0xf) ^ (c1guess & 0xf)])||(!c2->parentID)) 
+}
+static inline int accessAllowedPostive(struct Cell *const c2,const uintptr_t c1guess)
+{
+*/	/* Access permission is more probable if they are more similar in sense 0,
+	 * and more probable if they are different in sense 1. Sense 0 is used for
+	 * "negative" interactions and sense 1 for "positive" ones. 
+	return (((getRandom() & 0xf) <= BITS_IN_FOURBIT_WORD[(c2->genome[0] & 0xf) ^ (c1guess & 0xf)])||(!c2->parentID)); 
+}
+static inline int accessAllowed(struct Cell *const c2, const uintptr_t c1guess, int sense)
+{
+    int randomValue = getRandom() & 0xf;
+    int genomeValue = BITS_IN_FOURBIT_WORD[(c2->genome[0] & 0xf) ^ (c1guess & 0xf)];
+    int comparisonValue = sense ? genomeValue : 15 - genomeValue;
+    return (randomValue >= comparisonValue) || (!c2->parentID);
+}
+*/
 #ifdef USE_SDL
 static inline uint8_t getColor(struct Cell *c)
 {
@@ -650,8 +707,8 @@ static void *run(void *targ)
 		 * entropy into the substrate. This happens every INFLOW_FREQUENCY
 		 * clock ticks. */
 		if (!(clock % INFLOW_FREQUENCY)) {
-			x = getRandom() % POND_SIZE_X;
-			y = getRandom() % POND_SIZE_Y;
+			x = getRandom(1) % POND_SIZE_X;
+			y = getRandom(1) % POND_SIZE_Y;
 			pptr = &pond[x][y];
 
 #ifdef USE_PTHREADS_COUNT
@@ -663,12 +720,12 @@ static void *run(void *targ)
 			pptr->lineage = cellIdCounter;
 			pptr->generation = 0;
 #ifdef INFLOW_RATE_VARIATION
-			pptr->energy += INFLOW_RATE_BASE + (getRandom() % INFLOW_RATE_VARIATION);
+			pptr->energy += INFLOW_RATE_BASE + (getRandom(1) % INFLOW_RATE_VARIATION);
 #else
 			pptr->energy += INFLOW_RATE_BASE;
 #endif /* INFLOW_RATE_VARIATION */
 			for(i=0;i<POND_DEPTH_SYSWORDS;++i) 
-				pptr->genome[i] = getRandom();
+				pptr->genome[i] = getRandom(1);
 			++cellIdCounter;
 		
 			/* Update the random cell on SDL screen if viz is enabled */
@@ -682,7 +739,7 @@ static void *run(void *targ)
 		}
 
 		/* Pick a random cell to execute */
-		i = getRandom();
+		i = getRandom(1);
 		x = i % POND_SIZE_X;
 		y = ((i / POND_SIZE_X) >> 1) % POND_SIZE_Y;
 		pptr = &pond[x][y];
@@ -722,8 +779,8 @@ static void *run(void *targ)
 			 * it can have all manner of different effects on the end result of
 			 * replication: insertions, deletions, duplications of entire
 			 * ranges of the genome, etc. */
-			if ((getRandom() & 0xffffffff) < MUTATION_RATE) {
-				tmp = getRandom(); /* Call getRandom() only once for speed */
+			if ((getRandom(1) & 0xffffffff) < MUTATION_RATE) {
+				tmp = getRandom(1); /* Call getRandom() only once for speed */
 				if (tmp & 0x80) /* Check for the 8th bit to get random boolean */
 					inst = tmp & 0xf; /* Only the first four bits are used here */
 				else reg = tmp & 0xf;
@@ -744,7 +801,9 @@ static void *run(void *targ)
 				
 				/* Keep track of execution frequencies for each instruction */
 				statCounters.instructionExecutions[inst] += 1.0;
-				
+			    
+                // FOR FUTURE: Switch can be done by getting each variable, and using
+                // var = (i==0x1){A} + (i==0x2){B} + ...	
 				switch(inst) {
 					case 0x0: /* ZERO: Zero VM state registers */
 						reg = 0;
@@ -753,22 +812,46 @@ static void *run(void *targ)
 						facing = 0;
 						break;
 					case 0x1: /* FWD: Increment the pointer (wrap at end) */
-						if ((ptr_shiftPtr += 4) >= SYSWORD_BITS) {
-							if (++ptr_wordPtr >= POND_DEPTH_SYSWORDS)
-								ptr_wordPtr = 0;
-							ptr_shiftPtr = 0;
-						}
-						break;
-					case 0x2: /* BACK: Decrement the pointer (wrap at beginning) */
-						if (ptr_shiftPtr)
-							ptr_shiftPtr -= 4;
-						else {
-							if (ptr_wordPtr)
-								--ptr_wordPtr;
-							else ptr_wordPtr = POND_DEPTH_SYSWORDS - 1;
-							ptr_shiftPtr = SYSWORD_BITS - 4;
-						}
-						break;
+                        /*
+                        if ((ptr_shiftPtr += 4) >= SYSWORD_BITS) {
+                                 if (++ptr_wordPtr >= POND_DEPTH_SYSWORDS)
+                                     ptr_wordPtr = 0;
+                                 ptr_shiftPtr = 0;
+                             }
+                        */
+
+
+                        // ptr_shiftPtr increments by 4 to simulate a forward pointer, and
+                        // if it gets to be bigger than SYSWORD_BITS, it resets to zero. 
+                        ptr_shiftPtr=(ptr_shiftPtr+4)*((ptr_shiftPtr+4)<SYSWORD_BITS);
+                        // If ptr_shiftPtr +=4 goes beyond SYSWORD_Bits:
+                        //      It resets itself to zero.
+                        //      ptr_wordPtr tries to add 1 to itself. If that takes it
+                        //      to POND_DEPTH_SYSWORDS, then it resets to zero.
+                        ptr_wordPtr=(ptr_wordPtr*(ptr_shiftPtr!=0||((ptr_wordPtr+1)<POND_DEPTH_SYSWORDS))+(ptr_shiftPtr==0)*((ptr_wordPtr+1)<POND_DEPTH_SYSWORDS));
+
+                        break;
+					case 0x2: /* BACK: Decrement the pointer (wrap at beginning) */ 
+                        
+                        // ptr_shiftPtr decrements 4 until it reaches zero, and then
+                        // it resets at SYSWORD_BITS - 4
+                        ptr_shiftPtr=((ptr_shiftPtr==0)*SYSWORD_BITS)+ptr_shiftPtr-4;
+                        // ptr_wordPtr decrements 1 when ptr_shiftPtr reaches 0. If 
+                        // ptr_wordPtr is already zero, then it resets at
+                        // POND_DEPTH_SYSWORDS-1 
+                        ptr_wordPtr=((ptr_wordPtr==0&&ptr_shiftPtr==(SYSWORD_BITS-4))*(POND_DEPTH_SYSWORDS))+ptr_wordPtr-(ptr_shiftPtr==(SYSWORD_BITS-4));
+                        /* 
+                        if (ptr_shiftPtr)
+                                 ptr_shiftPtr -= 4;
+                             else {
+                                 if (ptr_wordPtr)
+                                     --ptr_wordPtr;
+                                 else ptr_wordPtr = POND_DEPTH_SYSWORDS - 1;
+                                 ptr_shiftPtr = SYSWORD_BITS - 4;
+                             }
+                       
+                       */
+                        break;
 					case 0x3: /* INC: Increment the register */
 						reg = (reg + 1) & 0xf;
 						break;
@@ -791,38 +874,79 @@ static void *run(void *targ)
 						outputBuf[ptr_wordPtr] |= reg << ptr_shiftPtr;
 						break;
 					case 0x9: /* LOOP: Jump forward to matching REP if register is zero */
-						if (reg) {
+					    /*	
+                        if (reg) {
 							if (loopStackPtr >= POND_DEPTH)
-								stop = 1; /* Stack overflow ends execution */
+                                stop = 1; // Stack overflow ends execution
 							else {
 								loopStack_wordPtr[loopStackPtr] = wordPtr;
 								loopStack_shiftPtr[loopStackPtr] = shiftPtr;
 								++loopStackPtr;
 							}
 						} else falseLoopDepth = 1;
-						break;
+				        */
+                        // stop gets set to 1 if there is a value in the register, but
+                        // the loopStackPtr >= POND_DEPTH (A stack overflow)
+                        stop=stop*!(reg&&(loopStackPtr>=POND_DEPTH))+(reg&&(loopStackPtr>=POND_DEPTH));
+                        // loopStack_wordPtr[loopStackPtr] gets set to the current
+                        // wordPtr if there is a value in the register and there is no
+                        // Stack overflow.
+                        loopStack_wordPtr[loopStackPtr]=loopStack_wordPtr[loopStackPtr]*(!reg||(loopStackPtr>=POND_DEPTH))+(wordPtr*(reg&&(loopStackPtr<POND_DEPTH)));
+                        
+                        // loopStack_shiftPtr[loopStackPtr] gets set to the current
+                        // shiftPtr if there is a value in the register and there is no
+                        // stack overflow
+                        loopStack_shiftPtr[loopStackPtr]=loopStack_shiftPtr[loopStackPtr]*(!reg||(loopStackPtr>=POND_DEPTH))+(shiftPtr*(reg&&(loopStackPtr<POND_DEPTH)));
+
+                        loopStackPtr = loopStackPtr + (reg&&(loopStackPtr<POND_DEPTH));
+                        falseLoopDepth = !reg;
+                        
+                        break;
+
 					case 0xa: /* REP: Jump back to matching LOOP if register is nonzero */
-						if (loopStackPtr) {
+                                 if (loopStackPtr) {
 							--loopStackPtr;
 							if (reg) {
 								wordPtr = loopStack_wordPtr[loopStackPtr];
 								shiftPtr = loopStack_shiftPtr[loopStackPtr];
 								currentWord = pptr->genome[wordPtr];
-								/* This ensures that the LOOP is rerun */
+								//This ensures that the LOOP is rerun 
 								continue;
 							}
 						}
 						break;
+					
+                                /*
+					case 0xa: // REP: Jump back to matching LOOP if register is nonzero
+						int condition1 = loopStackPtr > 0;
+						int condition2 = reg != 0;
+						uintptr_t newLoopStackPtr = loopStackPtr - condition1;
+						uintptr_t newWordPtr = condition1 * condition2 * loopStack_wordPtr[newLoopStackPtr] + (1 - condition1 * condition2) * wordPtr;
+						uintptr_t newShiftPtr = condition1 * condition2 * loopStack_shiftPtr[newLoopStackPtr] + (1 - condition1 * condition2) * shiftPtr;
+						uintptr_t newCurrentWord = condition1 * condition2 * pptr->genome[newWordPtr] + (1 - condition1 * condition2) * currentWord;
+						loopStackPtr = newLoopStackPtr;
+						wordPtr = newWordPtr;
+						shiftPtr = newShiftPtr;
+						currentWord = newCurrentWord;
+						if (condition1 * condition2) continue;
+						break;
+                        */
 					case 0xb: /* TURN: Turn in the direction specified by register */
 						facing = reg & 3;
 						break;
 					case 0xc: /* XCHG: Skip next instruction and exchange value of register with it */
-						if ((shiftPtr += 4) >= SYSWORD_BITS) {
-							if (++wordPtr >= POND_DEPTH_SYSWORDS) {
-								wordPtr = EXEC_START_WORD;
-								shiftPtr = EXEC_START_BIT;
-							} else shiftPtr = 0;
-						}
+						// increment wordptr by 1 if the shift Ptr is going to go
+                        // beyond the current word it is reading.
+                        // Set the wordptr to EXEC_START_WORD if the end of the
+                        // POND_DEPTH_SYSWORDS has been reached. 
+                        wordPtr=wordPtr*((shiftPtr+4<SYSWORD_BITS)||(wordPtr+1<POND_DEPTH_SYSWORDS))+((shiftPtr+4>=SYSWORD_BITS)&&(wordPtr+1<POND_DEPTH_SYSWORDS))+EXEC_START_WORD*((wordPtr+1>=POND_DEPTH_SYSWORDS)&&(shiftPtr+4>=SYSWORD_BITS));
+            
+            //shiftPtr shifts the current nibble being read by the machine
+            //It incrememnts four bits until it gets past SYSWORD_BITS, the 
+            //number of bits in a word, and then resets at either 0 or
+            //EXEC_START_BIT
+                        shiftPtr=(shiftPtr+4)+(shiftPtr+4>=SYSWORD_BITS)*(-shiftPtr-4);
+ 
 						tmp = reg;
 						reg = (pptr->genome[wordPtr] >> shiftPtr) & 0xf;
 						pptr->genome[wordPtr] &= ~(((uintptr_t)0xf) << shiftPtr);
@@ -831,41 +955,78 @@ static void *run(void *targ)
 						break;
 					case 0xd: /* KILL: Blow away neighboring cell if allowed with penalty on failure */
 						tmpptr = getNeighbor(x,y,facing);
-						if (accessAllowed(tmpptr,reg,0)) {
-							if (tmpptr->generation > 2)
-								++statCounters.viableCellsKilled;
 
-							/* Filling first two words with 0xfffff... is enough */
-							tmpptr->genome[0] = ~((uintptr_t)0);
-							tmpptr->genome[1] = ~((uintptr_t)0);
-							tmpptr->ID = cellIdCounter;
+                        
+/*
+                        int testing_var = accessAllowed(tmpptr,reg,0);
+						if (testing_var) {
+							if (tmpptr->generation > 2)
+								//++statCounters.viableCellsKilled;
+                                statCounters.viableCellsKilled=statCounters.viableCellsKilled+(accessAllowed(tmpptr,reg,0))*(tmpptr->generation>2)     ;
+
+                            //Filling first two words with 0xfffff... is enough 
+							
+                        
+                            tmpptr->genome[0] = ~((uintptr_t)0);
+                            //tmpptr->genome[0] = tmpptr->genome[0]*!(accessAllowed(tmpptr,reg,0))+(accessAllowed(tmpptr,reg,0))*~((uintptr_t)0     );
+                            tmpptr->genome[1] = ~((uintptr_t)0);
+							//tmpptr->genome[1] = tmpptr->genome[0]*!(accessAllowed(tmpptr,reg,0))+(accessAllowed(tmpptr,reg,0))*~((uintptr_t)0     );
+                            //tmpptr->ID = cellIdCounter;
+                           tmpptr->ID = tmpptr->ID * !(testing_var)+ (testing_var)*cellIdCounter;
+
 							tmpptr->parentID = 0;
-							tmpptr->lineage = cellIdCounter;
-							tmpptr->generation = 0;
-							++cellIdCounter;
+							//tmpptr->parentID = tmpptr->parentID * !(accessAllowed(tmpptr,reg,0));
+                            
+                            tmpptr->lineage = cellIdCounter;
+							//tmpptr->lineage = tmpptr->lineage * !(accessAllowed(tmpptr,reg,0)) + (accessAllowed(tmpptr,reg,0))*cellIdCounter;
+                            
+                            tmpptr->generation = 0;
+							
+                            
+                            ++cellIdCounter;
+                            //cellIdCounter=cellIdCounter * !(accessAllowed(tmpptr,reg,0)) + (accessAllowed(tmpptr,reg,0))* cellIdCounter;
 						} else if (tmpptr->generation > 2) {
-							tmp = pptr->energy / FAILED_KILL_PENALTY;
-							if (pptr->energy > tmp)
-								pptr->energy -= tmp;
+							
+                            
+                            //tmp = pptr->energy / FAILED_KILL_PENALTY;
+							tmp = tmp * (accessAllowed(tmpptr,reg,0)) + tmp * (tmpptr->generation>2)*!(accessAllowed(tmpptr,reg,0))*(pptr->energy / FAILED_KILL_PENALTY);
+                            if (pptr->energy > tmp)
+                                pptr->energy -= tmp;
 							else pptr->energy = 0;
+  
+                            pptr->energy = pptr->energy+!(accessAllowed(tmpptr,reg,0))*(tmpptr->generation>2)*(-pptr->energy) + !(accessAllowed(tmpptr,reg,0))*(tmpptr->generation>2)*(pptr->energy-tmp);
+
 						}
 						break;
+*/
+                           
+                        int access_var = accessAllowed(tmpptr,reg,0);
+                        tmp = 1; 
+						statCounters.viableCellsKilled=statCounters.viableCellsKilled+(access_var)*(tmpptr->generation>2);
+						tmpptr->genome[0] = tmpptr->genome[0]*!(access_var)+(access_var)*~((uintptr_t)0);
+						tmpptr->genome[1] = tmpptr->genome[0]*!(access_var)+(access_var)*~((uintptr_t)0);
+						tmpptr->ID = tmpptr->ID * !(access_var)+ (access_var)*cellIdCounter;
+						tmpptr->parentID = tmpptr->parentID * !(access_var);
+						tmpptr->lineage = tmpptr->lineage * !(access_var) + (access_var)*cellIdCounter;
+						cellIdCounter=cellIdCounter * !(access_var) + (access_var)* cellIdCounter;
+						tmp = tmp * (access_var) + tmp * (tmpptr->generation>2)*!(access_var)*(pptr->energy / FAILED_KILL_PENALTY);
+						pptr->energy = pptr->energy+!(access_var)*(tmpptr->generation>2)*(-pptr->energy) + !(access_var)*(tmpptr->generation>2)*(pptr->energy-tmp);
+                        
+                        tmpptr->generation = tmpptr->generation * (access_var);
+                        break;
+
+
 					case 0xe: /* SHARE: Equalize energy between self and neighbor if allowed */
 						tmpptr = getNeighbor(x,y,facing);
-						if (accessAllowed(tmpptr,reg,1)) {
-#ifdef USE_PTHREADS_COUNT
-							pthread_mutex_lock(&(tmpptr->lock));
-#endif
-							if (tmpptr->generation > 2)
-								++statCounters.viableCellShares;
-							tmp = pptr->energy + tmpptr->energy;
-							tmpptr->energy = tmp / 2;
-							pptr->energy = tmp - tmpptr->energy;
-#ifdef USE_PTHREADS_COUNT
-							pthread_mutex_unlock(&(tmpptr->lock));
-#endif
-						}
-						break;
+						int access = accessAllowed(tmpptr,reg,1);
+						int generationCondition = tmpptr->generation > 2;
+						tmp = pptr->energy + tmpptr->energy;
+						statCounters.viableCellShares += access * generationCondition;
+						uintptr_t newEnergyNeighbor = access * (tmp / 2) + (1 - access) * tmpptr->energy;
+						uintptr_t newEnergySelf = access * (tmp - newEnergyNeighbor) + (1 - access) * pptr->energy;
+						tmpptr->energy = newEnergyNeighbor;
+						pptr->energy = newEnergySelf;
+						break; 
 					case 0xf: /* STOP: End execution */
 						stop = 1;
 						break;
@@ -874,38 +1035,82 @@ static void *run(void *targ)
 			
 			/* Advance the shift and word pointers, and loop around
 			 * to the beginning at the end of the genome. */
-			if ((shiftPtr += 4) >= SYSWORD_BITS) {
+			
+
+            // increment wordptr by 1 if the shift Ptr is going to go
+            // beyond the current word it is reading.
+            // Set the wordptr to EXEC_START_WORD if the end of the
+            // POND_DEPTH_SYSWORDS has been reached.
+            wordPtr=wordPtr*((shiftPtr+4<SYSWORD_BITS)||(wordPtr+1<POND_DEPTH_SYSWORDS))+((shiftPtr+4>=SYSWORD_BITS)&&(wordPtr+1<POND_DEPTH_SYSWORDS))+EXEC_START_WORD*((wordPtr+1>=POND_DEPTH_SYSWORDS)&&(shiftPtr+4>=SYSWORD_BITS));
+
+            //currentWord gets incremented when the shiftptr is greater than
+            //SYSWORD_BITS, and it's time to move to the next word
+            currentWord=currentWord*(shiftPtr+4<SYSWORD_BITS)+(pptr->genome[wordPtr])*(shiftPtr+4>=SYSWORD_BITS);
+            
+            //shiftPtr shifts the current nibble being read by the machine
+            //It incrememnts four bits until it gets past SYSWORD_BITS, the 
+            //number of bits in a word, and then resets at either 0 or
+            //EXEC_START_BIT
+            shiftPtr=(shiftPtr+4)+(shiftPtr+4>=SYSWORD_BITS)*(-shiftPtr-4);
+                //+
+                //(EXEC_START_BIT)*(wordPtr+1>=POND_DEPTH_SYSWORDS)
+                //*(shiftPtr+4>=SYSWORD_BITS);
+            /*
+            if ((shiftPtr += 4) >= SYSWORD_BITS) {
 				if (++wordPtr >= POND_DEPTH_SYSWORDS) {
 					wordPtr = EXEC_START_WORD;
 					shiftPtr = EXEC_START_BIT;
 				} else shiftPtr = 0;
 				currentWord = pptr->genome[wordPtr];
 			}
-		}
+            */
+        }   
 
 		/* Copy outputBuf into neighbor if access is permitted and there
 		 * is energy there to make something happen. There is no need
 		 * to copy to a cell with no energy, since anything copied there
 		 * would never be executed and then would be replaced with random
 		 * junk eventually. See the seeding code in the main loop above. */
+		assert((outputBuf[0]&0xff) == 0xff);
         if ((outputBuf[0] & 0xff) != 0xff) {
-			tmpptr = getNeighbor(x,y,facing);
+            tmpptr = getNeighbor(x,y,facing);
 #ifdef USE_PTHREADS_COUNT
 			pthread_mutex_lock(&(tmpptr->lock));
 #endif
-			if ((tmpptr->energy)&&accessAllowed(tmpptr,reg,0)){
-				/* Log it if we're replacing a viable cell */
+
+
+
+            assert (tmpptr->energy ==1);            
+            int access_var = accessAllowed(tmpptr,reg,0);
+			//if ((tmpptr->energy)&&accessAllowed(tmpptr,reg,0)){
+            if ((tmpptr->energy)&&access_var) {
 				if (tmpptr->generation > 2)
-					++statCounters.viableCellsReplaced;
+					//++statCounters.viableCellsReplaced;
+                    statCounters.viableCellsReplaced = statCounters.viableCellsReplaced +(tmpptr->generation>2) * (tmpptr->energy&&access_var);
 				
 				tmpptr->ID = ++cellIdCounter;
 				tmpptr->parentID = pptr->ID;
-				tmpptr->lineage = pptr->lineage; /* Lineage is copied in offspring */
+				tmpptr->lineage = pptr->lineage; 
 				tmpptr->generation = pptr->generation + 1;
 
 				for(i=0;i<POND_DEPTH_SYSWORDS;++i)
 					tmpptr->genome[i] = outputBuf[i];
 			}
+
+            //COME BACK TO FIX
+           /* 
+            int access_var = accessAllowed(tmpptr,reg,0);
+            statCounters.viableCellsReplaced = statCounters.viableCellsReplaced +(tmpptr->generation>2) * (tmpptr->energy&&access_var);
+            cellIdCounter = cellIdCounter * !(tmpptr->energy&&access_var) + (tmpptr->energy&&access_var) * (cellIdCounter+1);
+            tmpptr->ID = tmpptr->ID * !(tmpptr->energy&&access_var) + (tmpptr->energy&&access_var) * (cellIdCounter);
+            tmpptr->parentID = tmpptr->parentID * !(tmpptr->energy&&access_var) + (tmpptr->energy&&access_var) * pptr->ID;
+            tmpptr->lineage = tmpptr->lineage * !(tmpptr->energy&&access_var) + (tmpptr->energy&&access_var) * pptr->lineage;
+            tmpptr->generation = tmpptr->generation * !(tmpptr->energy&&access_var) + (tmpptr->energy&&access_var) * (pptr->generation+1);
+
+            for(i=0;i<POND_DEPTH_SYSWORDS;++i){
+                tmpptr->genome[i] = tmpptr->genome[i] * !(tmpptr->energy&&access_var) + (tmpptr->energy&&access_var) * outputBuf[i];
+            }
+            */
 #ifdef USE_PTHREADS_COUNT
 			pthread_mutex_unlock(&(tmpptr->lock));
 #endif
@@ -947,7 +1152,7 @@ static void *run(void *targ)
 int main()
 {
 	uintptr_t i,x,y;
-
+    
 	/* Seed and init the random number generator */
 	prngState[0] = 0; //(uint64_t)time(NULL);
 	srand(13);
@@ -1029,6 +1234,6 @@ int main()
 	SDL_FreeSurface(screen);
 	SDL_DestroyWindow(window);
 #endif /* USE_SDL */
-
+    //free(randArray);
 	return 0;
 }
