@@ -28,10 +28,12 @@ static inline uintptr_t OGRandom()
 
 
 int main(){
-    uintptr_t diff;
-    for (int i = 0;i<10000;i++){
-        diff = getRandom(1)-OGRandom();
-        printf("%d ",diff);
+    uintptr_t new;
+    uintptr_t OG;
+    for (int i = 0;i<100;i++){
+        new = getRandom(1)-OGRandom();
+        OG = OGRandom();
+        printf("new : %lu, OG : %lu \n ",new,OG);
     }
     return 0;
 }
