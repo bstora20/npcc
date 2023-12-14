@@ -542,6 +542,72 @@ int cudaMain()
 	cudaMemcpy(d_pptr, pptr, sizeof(struct Cell), cudaMemcpyHostToDevice);
 	cudaMemcpy(d_tmpptr, tmpptr, sizeof(struct Cell), cudaMemcpyHostToDevice);
 
+
+    //generates a random number (will not be equal to nanopond)
+    float myrandf = curand_uniform(&(my_curandstate[idx]));
+    myrandf *= (max_rand_int[idx] - min_rand_int[idx] + 0.999999);
+    myrandf += min_rand_int[idx];
+    int myrand = (int)truncf(myrandf);
+    
+    cudaMemcpy(myrand, prngState, sizeof(uint64_t), cudaMemcpyDeviceToDevice); // check rand function
+    
+    //generates a random number (will not be equal to nanopond)
+    float myrandf1 = curand_uniform(&(my_curandstate[idx]));
+    myrandf1 *= (max_rand_int[idx] - min_rand_int[idx] + 0.999999);
+    myrandf1 += min_rand_int[idx];
+    int myrand1 = (int)truncf(myrandf);
+    cudaMemcpy(myrand1, prngState + 4 * sizeof(uint64_t), sizeof(uint64_t), cudaMemcpyDeviceToDevice);
+    
+    precalculate_random_numbers<<1,1>>(); // check numbers
+
+    //clear the pond and initialize all genomes to 0xff
+    // check setting values formatting
+    for (x=0;x<POND_SIZE_YX;++x){
+        for (y = 0; y< POND_SIZE_Y; ==y){
+            pond[y * POND_SIZE_X + x].ID = 0;
+            pond[y * POND_SIZE_X + x].parentID = 0;
+            pond[y * POND_SIZE_X + x].lineage = 0;
+            pond[y * POND_SIZE_X + x].generation = 0;
+            pond[y * POND_SIZE_X + x].energy = 0;
+            for (int i=0; i<POND_DEPTH_SYSWORDS;i++){
+            pond[y * POND_SIZE_X + x].genome[i] = 0;
+            }
+        }
+    }
+
+    run<<1,1>>()
+    /*
+     uintptr_t i,x,y;
+
+
+    //Seed and init the random number generator 
+    prngState[0] = 0; //(uint64_t)time(NULL);
+    srand(13);
+    prngState[1] = (uint64_t)rand();
+    
+    precalculate_random_numbers();
+
+    // Reset per-report stat counters 
+    for(x=0;x<sizeof(statCounters);++x)
+        ((uint8_t *)&statCounters)[x] = (uint8_t)0;
+ 
+    // Clear the pond and initialize all genomes
+     // to 0xffff... 
+    for(x=0;x<POND_SIZE_X;++x) {
+        for(y=0;y<POND_SIZE_Y;++y) {
+            pond[x][y].ID = 0;
+            pond[x][y].parentID = 0;
+            pond[x][y].lineage = 0;
+            pond[x][y].generation = 0;
+            pond[x][y].energy = 0;
+            for(i=0;i<POND_DEPTH_SYSWORDS;++i)
+                pond[x][y].genome[i] = ~((uintptr_t)0);
+        }   
+    }    
+    run((void *)0);
+
+     */
+
 	// Free memory on the GPU
 	cudaFree(d_outputBuf);
 	cudaFree(d_loopStack_wordPtr);
