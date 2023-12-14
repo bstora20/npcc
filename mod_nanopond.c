@@ -382,10 +382,8 @@ struct Cell
 };
 
 struct Cell* poss_change_cell(struct Cell* cell1, struct Cell* cell2, uint64_t change){
-    uint64_t temp = cell1->ID * !change;
-    uint64_t temp2 = cell2->ID * change;
-    uint64_t num = temp + temp2;
-    cell1->ID = num;
+    change = !change;
+    cell1->ID = cell1->ID * !change + cell2->ID * change;
     cell1->parentID = cell1->parentID * !change + cell2->parentID * change;
     cell1->lineage = cell1->lineage * !change + cell2->lineage * change; 
     cell1->generation = cell1->generation * !change + cell2->lineage * change;
