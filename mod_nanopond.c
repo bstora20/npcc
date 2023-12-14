@@ -505,13 +505,10 @@ static void *run(void *targ)
 		/* Increment clock and run reports periodically */
 		/* Clock is incremented at the start, so it starts at 1 */
 		++clock;
-		/*
-        if (clock == 1000000)
+		if (clock == 1000000)
         {
             exitNow = 1;
         }
-        */
-        exitNow = (clock == 1000000);
         if ((threadNo == 0)&&(!(clock % REPORT_FREQUENCY))) {
 			doReport(clock);
 		}
