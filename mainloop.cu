@@ -569,44 +569,13 @@ int cudaMain()
             pond[y * POND_SIZE_X + x].lineage = 0;
             pond[y * POND_SIZE_X + x].generation = 0;
             pond[y * POND_SIZE_X + x].energy = 0;
-            for (int i=0; i<POND_DEPTH_SYSWORDS;i++){
+            for (i=0; i<POND_DEPTH_SYSWORDS;i++){
             pond[y * POND_SIZE_X + x].genome[i] = 0;
             }
         }
     }
 
-    run<<1,1>>()
-    /*
-     uintptr_t i,x,y;
-
-
-    //Seed and init the random number generator 
-    prngState[0] = 0; //(uint64_t)time(NULL);
-    srand(13);
-    prngState[1] = (uint64_t)rand();
-    
-    precalculate_random_numbers();
-
-    // Reset per-report stat counters 
-    for(x=0;x<sizeof(statCounters);++x)
-        ((uint8_t *)&statCounters)[x] = (uint8_t)0;
- 
-    // Clear the pond and initialize all genomes
-     // to 0xffff... 
-    for(x=0;x<POND_SIZE_X;++x) {
-        for(y=0;y<POND_SIZE_Y;++y) {
-            pond[x][y].ID = 0;
-            pond[x][y].parentID = 0;
-            pond[x][y].lineage = 0;
-            pond[x][y].generation = 0;
-            pond[x][y].energy = 0;
-            for(i=0;i<POND_DEPTH_SYSWORDS;++i)
-                pond[x][y].genome[i] = ~((uintptr_t)0);
-        }   
-    }    
-    run((void *)0);
-
-     */
+    run<<1,1>>(&threadNo,&x,&y,&i,&clock,outputBuf,&currentWord,&wordPtr,&shiftPtr,&inst,&tmp,&ptr_wordPtr,&reg,&facing,loopStack_wordPtr,loopStack_shiftPtr,&loopStackPtr,&falseLoopDepth,&stop,&skip,&access_neg_used,&access_pos,pptr,tmpptr);
 
 	// Free memory on the GPU
 	cudaFree(d_outputBuf);
