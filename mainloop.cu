@@ -103,7 +103,7 @@ struct Cell
 	uintptr_t genome[POND_DEPTH_SYSWORDS];
 };
 
-volatile struct {
+struct statCounters {
 	/* Counts for the number of times each instruction was
 	 * executed since the last report. */
 	double instructionExecutions[16];
@@ -119,7 +119,7 @@ volatile struct {
 	
 	/* Number of successful SHARE operations */
 	uintptr_t viableCellShares;
-} statCounters;
+};
 
 /* This is used to generate unique cell IDs */
 __managed__ static volatile uint64_t cellIdCounter = 0;
@@ -178,7 +178,7 @@ __device__ static inline void getNeighbor(struct Cell *pond, const uintptr_t x, 
     ret = &pond[newY * POND_SIZE_X + newX];
 }
 
-static void doReport(struct Cell *pond, const uint64_t clock)
+static void doReport(struct Cell *pond, struct statCounters *statCounter, const uint64_t clock)
 {
     static uint64_t lastTotalViableReplicators = 0;
     
@@ -212,21 +212,21 @@ static void doReport(struct Cell *pond, const uint64_t clock)
 		(uint64_t)totalActiveCells,
 		(uint64_t)totalViableReplicators,
 		(uint64_t)maxGeneration,
-		(uint64_t)statCounters.viableCellsReplaced,
-		(uint64_t)statCounters.viableCellsKilled,
-		(uint64_t)statCounters.viableCellShares
+		(uint64_t)statCounter->viableCellsReplaced,
+		(uint64_t)statCounter->viableCellsKilled,
+		(uint64_t)statCounter->viableCellShares
 		);
 	
 	/* The next 16 are the average frequencies of execution for each
 	 * instruction per cell execution. */
 	double totalMetabolism = 0.0;
 	for(x=0;x<16;++x) {
-		totalMetabolism += statCounters.instructionExecutions[x];
-		printf(",%.4f",(statCounters.cellExecutions > 0.0) ? (statCounters.instructionExecutions[x] / statCounters.cellExecutions) : 0.0);
+		totalMetabolism += statCounter->instructionExecutions[x];
+		printf(",%.4f",(statCounter->cellExecutions > 0.0) ? (statCounter->instructionExecutions[x] / statCounter->cellExecutions) : 0.0);
 	}
 	
 	/* The last column is the average metabolism per cell execution */
-	printf(",%.4f\n",(statCounters.cellExecutions > 0.0) ? (totalMetabolism / statCounters.cellExecutions) : 0.0);
+	printf(",%.4f\n",(statCounter->cellExecutions > 0.0) ? (totalMetabolism / statCounter->cellExecutions) : 0.0);
 	fflush(stdout);
 	
 	if ((lastTotalViableReplicators > 0)&&(totalViableReplicators == 0))
@@ -237,11 +237,11 @@ static void doReport(struct Cell *pond, const uint64_t clock)
 	lastTotalViableReplicators = totalViableReplicators;
 	
 	/* Reset per-report stat counters */
-	for(x=0;x<sizeof(statCounters);++x)
-		((uint8_t *)&statCounters)[x] = (uint8_t)0;
+	for(x=0;x<sizeof(statCounter);++x)
+		((uint8_t *)&statCounter)[x] = (uint8_t)0;
 }
 
-__global__ static void run(struct Cell *pond, uintptr_t *buffer, int *in, uint64_t *prngState) 
+__global__ static void run(struct Cell *pond, uintptr_t *buffer, int *in, uint64_t *prngState, struct statCounters *statCounter) 
 {
     //const uintptr_t threadNo = (uintptr_t)targ;
     uintptr_t x,y,i;
@@ -264,6 +264,13 @@ __global__ static void run(struct Cell *pond, uintptr_t *buffer, int *in, uint64
     uintptr_t access_neg;
     uintptr_t access_pos;
     uintptr_t rand;
+    int exitNow = 0;
+    while (!exitNow) {
+    clock++;
+    if (clock == 1000000)
+        {
+            exitNow = 1;
+        }
     if (!(clock % INFLOW_FREQUENCY)) {
         getRandomRollback(1, &x, buffer, in, prngState);
         x = x % POND_SIZE_X;
@@ -316,7 +323,7 @@ __global__ static void run(struct Cell *pond, uintptr_t *buffer, int *in, uint64
         * the code. :) */
     currentWord = pptr->genome[0];
     /* Keep track of how many cells have been executed */
-    statCounters.cellExecutions += 1.0;
+    statCounter->cellExecutions += 1.0;
     /* Core execution loop */
     while ((pptr->energy)&&(!stop)) {
         /* Get the next instruction */
@@ -367,7 +374,7 @@ __global__ static void run(struct Cell *pond, uintptr_t *buffer, int *in, uint64
             access_neg_used = (inst == 0x0 || inst == 0x1 || inst == 0x2 || inst == 0x3 || inst == 0x4 || inst == 0x5 || inst == 0x6 || inst == 0x7 || inst == 0x8 || inst == 0x9 || inst == 0xa || inst == 0xb || inst == 0xc || inst == 0xe|| inst == 0xf)*(access_neg_used)+((inst == 0xd)*(1));
             accessAllowed(tmpptr,reg,0, access_neg_used, &access_neg, buffer, in, prngState);
             accessAllowed(tmpptr,reg,1, access_pos_used, &access_pos, buffer, in, prngState);
-            statCounters.viableCellsKilled=(inst == 0x0 || inst == 0x1 || inst == 0x2 || inst == 0x3 || inst == 0x4 || inst == 0x5 || inst == 0x6 || inst == 0x7 || inst == 0x8 || inst == 0x9 || inst == 0xa || inst == 0xb || inst == 0xc || inst == 0xf)*(statCounters.viableCellsKilled)+((inst == 0xd)*(statCounters.viableCellsKilled+(access_neg)*(tmpptr->generation>2)))+((inst == 0xe)*(statCounters.viableCellsKilled+(access_pos)*(tmpptr->generation>2)));
+            statCounter->viableCellsKilled=(inst == 0x0 || inst == 0x1 || inst == 0x2 || inst == 0x3 || inst == 0x4 || inst == 0x5 || inst == 0x6 || inst == 0x7 || inst == 0x8 || inst == 0x9 || inst == 0xa || inst == 0xb || inst == 0xc || inst == 0xf)*(statCounter->viableCellsKilled)+((inst == 0xd)*(statCounter->viableCellsKilled+(access_neg)*(tmpptr->generation>2)))+((inst == 0xe)*(statCounter->viableCellsKilled+(access_pos)*(tmpptr->generation>2)));
             tmpptr->genome[0]=(inst == 0x0 || inst == 0x1 || inst == 0x2 || inst == 0x3 || inst == 0x4 || inst == 0x5 || inst == 0x6 || inst == 0x7 || inst == 0x8 || inst == 0x9 || inst == 0xa || inst == 0xb || inst == 0xc || inst == 0xe || inst == 0xf)*(tmpptr->genome[0])+((inst == 0xd)*(tmpptr->genome[0]*!(access_neg)+(access_neg)*~((uintptr_t)0)));
             tmpptr->genome[1]=(inst == 0x0 || inst == 0x1 || inst == 0x2 || inst == 0x3 || inst == 0x4 || inst == 0x5 || inst == 0x6 || inst == 0x7 || inst == 0x8 || inst == 0x9 || inst == 0xa || inst == 0xb || inst == 0xc || inst == 0xe || inst == 0xf)*(tmpptr->genome[1])+((inst == 0xd)*(tmpptr->genome[0]*!(access_neg)+(access_neg)*~((uintptr_t)0)));
             tmpptr->ID=(inst == 0x0 || inst == 0x1 || inst == 0x2 || inst == 0x3 || inst == 0x4 || inst == 0x5 || inst == 0x6 || inst == 0x7 || inst == 0x8 || inst == 0x9 || inst == 0xa || inst == 0xb || inst == 0xc || inst == 0xe || inst == 0xf)*(tmpptr->ID)+((inst == 0xd)*(tmpptr->ID * !(access_neg)+ (access_neg)*cellIdCounter));
@@ -381,7 +388,7 @@ __global__ static void run(struct Cell *pond, uintptr_t *buffer, int *in, uint64
             tmpptr->generation = (inst == 0x0 || inst == 0x1 || inst == 0x2 || inst == 0x3 || inst == 0x4 || inst == 0x5 || inst == 0x6 || inst == 0x7 || inst == 0x8 || inst == 0x9 || inst == 0xa || inst == 0xb || inst == 0xc || inst == 0xe || inst == 0xf)*(tmpptr->generation)+((inst == 0xd)*(tmpptr->generation * (access_neg)));
             tmpptr->energy=(inst == 0x0 || inst == 0x1 || inst == 0x2 || inst == 0x3 || inst == 0x4 || inst == 0x5 || inst == 0x6 || inst == 0x7 || inst == 0x8 || inst == 0x9 || inst == 0xa || inst == 0xb || inst == 0xc || inst == 0xd || inst == 0xf)*(tmpptr->energy)+((inst == 0xe)*((access_pos * (tmp / 2) + (1 - access_pos) * tmpptr->energy)));
             /* Keep track of execution frequencies for each instruction */
-            statCounters.instructionExecutions[inst] += 1.0;
+            statCounter->instructionExecutions[inst] += 1.0;
         }
         wordPtr=(wordPtr*((shiftPtr+4<SYSWORD_BITS)||(wordPtr+1<POND_DEPTH_SYSWORDS)) + ((shiftPtr+4>=SYSWORD_BITS)&&(wordPtr+1<POND_DEPTH_SYSWORDS)) + EXEC_START_WORD*((wordPtr+1>=POND_DEPTH_SYSWORDS)&&(shiftPtr+4>=SYSWORD_BITS)))*!skip + wordPtr*skip;
         currentWord=(currentWord*(shiftPtr+4<SYSWORD_BITS)+(pptr->genome[wordPtr])*(shiftPtr+4>=SYSWORD_BITS))*!skip+ currentWord*skip;
@@ -400,7 +407,7 @@ __global__ static void run(struct Cell *pond, uintptr_t *buffer, int *in, uint64
             if(rand) {
             /* Log it if we're replacing a viable cell */
             if (tmpptr->generation > 2)
-                ++statCounters.viableCellsReplaced;
+                ++statCounter->viableCellsReplaced;
             tmpptr->ID = ++cellIdCounter;
             tmpptr->parentID = pptr->ID;
             tmpptr->lineage = pptr->lineage; /* Lineage is copied in offspring */
@@ -409,6 +416,7 @@ __global__ static void run(struct Cell *pond, uintptr_t *buffer, int *in, uint64
                 tmpptr->genome[i] = outputBuf[i];
             }
         }
+    }
     }
 }
 
@@ -442,14 +450,20 @@ int main() {
     struct Cell *d_pond;
     cudaMalloc(&d_pond, POND_SIZE_X * POND_SIZE_Y * sizeof(struct Cell));
     // ON CPU
-    struct Cell *h_pond;
     
     // Seed and init the random number generator
     uint64_t h_prngState[2] = {0, (uint64_t)rand()};
     cudaMemcpy(d_prngState, h_prngState, 2 * sizeof(uint64_t), cudaMemcpyHostToDevice);
 
+
+    struct statCounters *statCounters = (struct statCounters *)malloc(sizeof(struct statCounters));
+    struct Cell *h_pond = (struct Cell *)malloc(POND_SIZE_X * POND_SIZE_Y * sizeof(struct Cell));
     // Reset per-report stat counters
-    // This can be done in a kernel if statCounters is on the GPU
+    // Declare a device pointer for statCounters
+    struct statCounters *d_statCounters;
+ 
+    cudaMalloc(&d_statCounters, sizeof(d_statCounters));
+
 
     // Clear the pond and initialize all genomes
     // This can be done in a kernel
@@ -458,83 +472,25 @@ int main() {
    // Call the kernel function
     for (uint64_t n = 0; n < 1000000; n++){
         for (int m = 0 ; m < REPORT_FREQUENCY; m++){
-            run<<<1, 1>>>(d_pond, d_buffer, d_in, d_prngState);
+            run<<<1, 1>>>(d_pond, d_buffer, d_in, d_prngState, d_statCounters);
+            cudaDeviceSynchronize();
+            
         }
+        cudaMemcpy(statCounters, d_statCounters, sizeof(struct statCounters), cudaMemcpyDeviceToHost);  
         cudaMemcpy(h_pond, d_pond, POND_SIZE_X * POND_SIZE_Y * sizeof(struct Cell), cudaMemcpyDeviceToHost);
-        doReport(h_pond, n);
+        doReport(h_pond, statCounters, n);
     }
     
 
-	// Copy data from host to device
-	cudaMemcpy(d_threadNo, &threadNo, sizeof(uintptr_t), cudaMemcpyHostToDevice);
-	cudaMemcpy(d_x, &x, sizeof(uintptr_t), cudaMemcpyHostToDevice);
-	cudaMemcpy(d_y, &y, sizeof(uintptr_t), cudaMemcpyHostToDevice);
-	cudaMemcpy(d_i, &i, sizeof(uintptr_t), cudaMemcpyHostToDevice);
-	cudaMemcpy(d_clock, &clock, sizeof(uintptr_t), cudaMemcpyHostToDevice);
-	cudaMemcpy(d_outputBuf, outputBuf, POND_DEPTH_SYSWORDS * sizeof(uintptr_t), cudaMemcpyHostToDevice);
-	cudaMemcpy(d_currentWord, &currentWord, sizeof(uintptr_t), cudaMemcpyHostToDevice);
-	cudaMemcpy(d_wordPtr, &wordPtr, sizeof(uintptr_t), cudaMemcpyHostToDevice);
-	cudaMemcpy(d_shiftPtr, &shiftPtr, sizeof(uintptr_t), cudaMemcpyHostToDevice);
-	cudaMemcpy(d_inst, &inst, sizeof(uintptr_t), cudaMemcpyHostToDevice);
-	cudaMemcpy(d_tmp, &tmp, sizeof(uintptr_t), cudaMemcpyHostToDevice);
-	cudaMemcpy(d_ptr_wordPtr, &ptr_wordPtr, sizeof(uintptr_t), cudaMemcpyHostToDevice);
-	cudaMemcpy(d_ptr_shiftPtr, &ptr_shiftPtr, sizeof(uintptr_t), cudaMemcpyHostToDevice);
-	cudaMemcpy(d_reg, &reg, sizeof(uintptr_t), cudaMemcpyHostToDevice);
-	cudaMemcpy(d_facing, &facing, sizeof(uintptr_t), cudaMemcpyHostToDevice);
-	cudaMemcpy(d_loopStack_wordPtr, loopStack_wordPtr, POND_DEPTH * sizeof(uintptr_t), cudaMemcpyHostToDevice);
-	cudaMemcpy(d_loopStack_shiftPtr, loopStack_shiftPtr, POND_DEPTH * sizeof(uintptr_t), cudaMemcpyHostToDevice);
-	cudaMemcpy(d_loopStackPtr, &loopStackPtr, sizeof(uintptr_t), cudaMemcpyHostToDevice);
-	cudaMemcpy(d_falseLoopDepth, &falseLoopDepth, sizeof(uintptr_t), cudaMemcpyHostToDevice);
-	cudaMemcpy(d_stop, &stop, sizeof(int), cudaMemcpyHostToDevice);
-	cudaMemcpy(d_skip, &skip, sizeof(int), cudaMemcpyHostToDevice);
-	cudaMemcpy(d_access_neg_used, &access_neg_used, sizeof(int), cudaMemcpyHostToDevice);
-	cudaMemcpy(d_access_pos_used, &access_pos_used, sizeof(int), cudaMemcpyHostToDevice);
-	cudaMemcpy(d_access_neg, &access_neg, sizeof(int), cudaMemcpyHostToDevice);
-	cudaMemcpy(d_access_pos, &access_pos, sizeof(int), cudaMemcpyHostToDevice);
-	cudaMemcpy(d_pptr, pptr, sizeof(struct Cell), cudaMemcpyHostToDevice);
-	cudaMemcpy(d_tmpptr, tmpptr, sizeof(struct Cell), cudaMemcpyHostToDevice);
+    // Free the memory on the GPU
+    cudaFree(d_buffer);
+    cudaFree(d_in);
+    cudaFree(d_last_random_number);
+    cudaFree(d_prngState);
+    cudaFree(d_pond);
+    cudaFree(d_statCounters);
+    free(statCounters);
+    free(h_pond);
 
-
-    //generates a random number (will not be equal to nanopond)
-    float myrandf = curand_uniform(&(my_curandstate[idx]));
-    myrandf *= (max_rand_int[idx] - min_rand_int[idx] + 0.999999);
-    myrandf += min_rand_int[idx];
-    int myrand = (int)truncf(myrandf);
-   
-    prngState[0] = myrand; 
-    
-    //generates a random number (will not be equal to nanopond)
-    float myrandf1 = curand_uniform(&(my_curandstate[idx]));
-    myrandf1 *= (max_rand_int[idx] - min_rand_int[idx] + 0.999999);
-    myrandf1 += min_rand_int[idx];
-    int myrand1 = (int)truncf(myrandf);
-    prngState[1] = myrand1;
-
-    precalculate_random_numbers<<1,1>>(); // check numbers
-
-    //clear the pond and initialize all genomes to 0xff
-    // check setting values formatting
-    for (x=0;x<POND_SIZE_YX;++x){
-        for (y = 0; y< POND_SIZE_Y; ==y){
-            pond[y * POND_SIZE_X + x].ID = 0;
-            pond[y * POND_SIZE_X + x].parentID = 0;
-            pond[y * POND_SIZE_X + x].lineage = 0;
-            pond[y * POND_SIZE_X + x].generation = 0;
-            pond[y * POND_SIZE_X + x].energy = 0;
-            for (i=0; i<POND_DEPTH_SYSWORDS;i++){
-            pond[y * POND_SIZE_X + x].genome[i] = 0;
-            }
-        }
-    }
-
-    run<<1,1>>(&threadNo,&x,&y,&i,&clock,outputBuf,&currentWord,&wordPtr,&shiftPtr,&inst,&tmp,&ptr_wordPtr,&reg,&facing,loopStack_wordPtr,loopStack_shiftPtr,&loopStackPtr,&falseLoopDepth,&stop,&skip,&access_neg_used,&access_pos,pptr,tmpptr);
-
-	// Free memory on the GPU
-	cudaFree(d_outputBuf);
-	cudaFree(d_loopStack_wordPtr);
-	cudaFree(d_loopStack_shiftPtr);
-	cudaFree(d_stop);
-	cudaFree(d_skip);
-	cudaFree(d_access_neg_used);
-	cudaFree(d_access_pos_used);
+    return 0;
 }
