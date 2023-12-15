@@ -548,16 +548,16 @@ int cudaMain()
     myrandf *= (max_rand_int[idx] - min_rand_int[idx] + 0.999999);
     myrandf += min_rand_int[idx];
     int myrand = (int)truncf(myrandf);
-    
-    cudaMemcpy(myrand, prngState, sizeof(uint64_t), cudaMemcpyDeviceToDevice); // check rand function
+   
+    prngState[0] = myrand; 
     
     //generates a random number (will not be equal to nanopond)
     float myrandf1 = curand_uniform(&(my_curandstate[idx]));
     myrandf1 *= (max_rand_int[idx] - min_rand_int[idx] + 0.999999);
     myrandf1 += min_rand_int[idx];
     int myrand1 = (int)truncf(myrandf);
-    cudaMemcpy(myrand1, prngState + 4 * sizeof(uint64_t), sizeof(uint64_t), cudaMemcpyDeviceToDevice);
-    
+    prngState[1] = myrand1;
+
     precalculate_random_numbers<<1,1>>(); // check numbers
 
     //clear the pond and initialize all genomes to 0xff
