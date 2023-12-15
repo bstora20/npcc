@@ -241,7 +241,7 @@ static void doReport(struct Cell *pond, const uint64_t clock)
 		((uint8_t *)&statCounters)[x] = (uint8_t)0;
 }
 
-__global__ static void executionLoop(struct Cell *pond, uintptr_t *buffer, int *in, uint64_t *prngState) 
+__global__ static void run(struct Cell *pond, uintptr_t *buffer, int *in, uint64_t *prngState) 
 {
     const uintptr_t threadNo = (uintptr_t)targ;
     uintptr_t x,y,i;
@@ -360,8 +360,8 @@ __global__ static void executionLoop(struct Cell *pond, uintptr_t *buffer, int *
             access_pos_used = 0;
             access_pos_used = (inst == 0x0 || inst == 0x1 || inst == 0x2 || inst == 0x3 || inst == 0x4 || inst == 0x5 || inst == 0x6 || inst == 0x7 || inst == 0x8 || inst == 0x9 || inst == 0xa || inst == 0xb || inst == 0xc || inst == 0xd || inst == 0xf)*(access_pos_used)+((inst == 0xe)*(1));
             access_neg_used = (inst == 0x0 || inst == 0x1 || inst == 0x2 || inst == 0x3 || inst == 0x4 || inst == 0x5 || inst == 0x6 || inst == 0x7 || inst == 0x8 || inst == 0x9 || inst == 0xa || inst == 0xb || inst == 0xc || inst == 0xe|| inst == 0xf)*(access_neg_used)+((inst == 0xd)*(1));
-            accessAllowed(tmpptr,reg,0, access_neg_used, access_neg, &buffer, &in, &prngState);
-            accessAllowed(tmpptr,reg,1, access_pos_used, access_pos, &buffer, &in, &prngState);
+            accessAllowed(tmpptr,reg,0, access_neg_used, &access_neg, &buffer, &in, &prngState);
+            accessAllowed(tmpptr,reg,1, access_pos_used, &access_pos, &buffer, &in, &prngState);
             statCounters.viableCellsKilled=(inst == 0x0 || inst == 0x1 || inst == 0x2 || inst == 0x3 || inst == 0x4 || inst == 0x5 || inst == 0x6 || inst == 0x7 || inst == 0x8 || inst == 0x9 || inst == 0xa || inst == 0xb || inst == 0xc || inst == 0xf)*(statCounters.viableCellsKilled)+((inst == 0xd)*(statCounters.viableCellsKilled+(access_neg)*(tmpptr->generation>2)))+((inst == 0xe)*(statCounters.viableCellsKilled+(access_pos)*(tmpptr->generation>2)));
             tmpptr->genome[0]=(inst == 0x0 || inst == 0x1 || inst == 0x2 || inst == 0x3 || inst == 0x4 || inst == 0x5 || inst == 0x6 || inst == 0x7 || inst == 0x8 || inst == 0x9 || inst == 0xa || inst == 0xb || inst == 0xc || inst == 0xe || inst == 0xf)*(tmpptr->genome[0])+((inst == 0xd)*(tmpptr->genome[0]*!(access_neg)+(access_neg)*~((uintptr_t)0)));
             tmpptr->genome[1]=(inst == 0x0 || inst == 0x1 || inst == 0x2 || inst == 0x3 || inst == 0x4 || inst == 0x5 || inst == 0x6 || inst == 0x7 || inst == 0x8 || inst == 0x9 || inst == 0xa || inst == 0xb || inst == 0xc || inst == 0xe || inst == 0xf)*(tmpptr->genome[1])+((inst == 0xd)*(tmpptr->genome[0]*!(access_neg)+(access_neg)*~((uintptr_t)0)));
@@ -391,7 +391,7 @@ __global__ static void executionLoop(struct Cell *pond, uintptr_t *buffer, int *
         getNeighbor(pond,x,y,facing, tmpptr);
         //printf("%lu\n", tmpptr->energy);
         if ((tmpptr->energy)) {
-            accessAllowed(tmpptr,reg,0,1, rand, &buffer, &in, &prngState);
+            accessAllowed(tmpptr,reg,0,1, &rand, &buffer, &in, &prngState);
             if(rand) {
             /* Log it if we're replacing a viable cell */
             if (tmpptr->generation > 2)
@@ -407,11 +407,21 @@ __global__ static void executionLoop(struct Cell *pond, uintptr_t *buffer, int *
     }
     return (void *)0;
 }
-    
 
+__global__ void initializePond(struct Cell *pond) {
+    int x = blockIdx.x;
+    int y = threadIdx.x;
 
-int cudaMain()
-{
+    pond[x * POND_SIZE_Y + y].ID = 0;
+    pond[x * POND_SIZE_Y + y].parentID = 0;
+    pond[x * POND_SIZE_Y + y].lineage = 0;
+    pond[x * POND_SIZE_Y + y].generation = 0;
+    pond[x * POND_SIZE_Y + y].energy = 0;
+    for(int i = 0; i < POND_DEPTH_SYSWORDS; ++i)
+        pond[x * POND_SIZE_Y + y].genome[i] = ~((uintptr_t)0);
+}
+
+int main() {
     // Declare device pointers
     uintptr_t *d_buffer;
     int *d_in;
@@ -419,23 +429,34 @@ int cudaMain()
     uint64_t *d_prngState;
 
     // Allocate memory on the GPU for each variable
-    cudaMalloc(&d_33, BUFFER_SIZE * sizeof(uintptr_t));
+    cudaMalloc(&d_buffer, BUFFER_SIZE * sizeof(uintptr_t));
     cudaMalloc(&d_in, sizeof(int));
     cudaMalloc(&d_last_random_number, sizeof(uintptr_t));
     cudaMalloc(&d_prngState, 2 * sizeof(uint64_t));
 
-    // allocate the pond
+    // Allocate the pond
     struct Cell *d_pond;
     cudaMalloc(&d_pond, POND_SIZE_X * POND_SIZE_Y * sizeof(struct Cell));
 
+    // Seed and init the random number generator
+    uint64_t h_prngState[2] = {0, (uint64_t)rand()};
+    cudaMemcpy(d_prngState, h_prngState, 2 * sizeof(uint64_t), cudaMemcpyHostToDevice);
 
-	// Call the kernel function
+    // Reset per-report stat counters
+    // This can be done in a kernel if statCounters is on the GPU
+
+    // Clear the pond and initialize all genomes
+    // This can be done in a kernel
+    initializePond<<<POND_SIZE_X, POND_SIZE_Y>>>(d_pond);
+
+   // Call the kernel function
     for (n = 0; n < 1000000; n++){
         for (m = 0 ; m < REPORT_FREQUENCYl m++){
-            executionLoop<<1,1>>(d_pond)
+            execute<<<1, 1>>>(d_buffer, d_in, d_last_random_number, d_prngState, d_pond);
         }
         doReport(n);
     }
+    
 
 	// Copy data from host to device
 	cudaMemcpy(d_threadNo, &threadNo, sizeof(uintptr_t), cudaMemcpyHostToDevice);
