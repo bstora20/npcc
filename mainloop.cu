@@ -241,11 +241,10 @@ static void doReport(struct Cell *pond, struct statCounters *statCounter, const 
 		((uint8_t *)&statCounter)[x] = (uint8_t)0;
 }
 
-__global__ static void run(struct Cell *pond, uintptr_t *buffer, int *in, uint64_t *prngState, struct statCounters *statCounter) 
+__global__ static void run(struct Cell *pond, uintptr_t *buffer, int *in, uint64_t *prngState, struct statCounters *statCounter,uint64_t clock) 
 {
     //const uintptr_t threadNo = (uintptr_t)targ;
     uintptr_t x,y,i;
-    uintptr_t clock = 0;
     uintptr_t outputBuf[POND_DEPTH_SYSWORDS];
     uintptr_t currentWord,wordPtr,shiftPtr,inst,tmp;
     struct Cell *pptr,*tmpptr;
@@ -267,7 +266,7 @@ __global__ static void run(struct Cell *pond, uintptr_t *buffer, int *in, uint64
     int exitNow = 0;
     while (!exitNow) {
     clock++;
-    if (clock == 1000000)
+    if ((clock == 1000000) || (clock %REPORT_FREQUENCY == 0))
         {
             exitNow = 1;
         }
@@ -439,13 +438,14 @@ int main() {
     int *d_in;
     uintptr_t *d_last_random_number;
     uint64_t *d_prngState;
+    uint64_t clock;
 
     // Allocate memory on the GPU for each variable
     cudaMalloc(&d_buffer, BUFFER_SIZE * sizeof(uintptr_t));
     cudaMalloc(&d_in, sizeof(int));
     cudaMalloc(&d_last_random_number, sizeof(uintptr_t));
     cudaMalloc(&d_prngState, 2 * sizeof(uint64_t));
-
+    //cudaMalloc(clock,sizeof(uint64_t));
     // Allocate the pond
     struct Cell *d_pond;
     cudaMalloc(&d_pond, POND_SIZE_X * POND_SIZE_Y * sizeof(struct Cell));
@@ -470,17 +470,14 @@ int main() {
     initializePond<<<POND_SIZE_X, POND_SIZE_Y>>>(d_pond);
 
    // Call the kernel function
-    for (uint64_t n = 0; n < 1000000; n++){
-        for (int m = 0 ; m < REPORT_FREQUENCY; m++){
-            run<<<1, 1>>>(d_pond, d_buffer, d_in, d_prngState, d_statCounters);
-            cudaDeviceSynchronize();
+    while (clock != 1000000){    
+        run<<<1, 1>>>(d_pond, d_buffer, d_in, d_prngState, d_statCounters,clock);
+        cudaDeviceSynchronize();
+        doReport(h_pond, statCounters, clock);
             
-        }
         cudaMemcpy(statCounters, d_statCounters, sizeof(struct statCounters), cudaMemcpyDeviceToHost);  
         cudaMemcpy(h_pond, d_pond, POND_SIZE_X * POND_SIZE_Y * sizeof(struct Cell), cudaMemcpyDeviceToHost);
-        doReport(h_pond, statCounters, n);
     }
-    
 
     // Free the memory on the GPU
     cudaFree(d_buffer);
