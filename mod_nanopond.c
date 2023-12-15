@@ -414,10 +414,12 @@ static void doReport(const uint64_t clock)
 	
 	/* The next 16 are the average frequencies of execution for each
 	 * instruction per cell execution. */
+
+    // 3 if statements to remove here !!!
 	double totalMetabolism = 0.0;
 	for(x=0;x<16;++x) {
 		totalMetabolism += statCounters.instructionExecutions[x];
-		printf(",%.4f",(statCounters.cellExecutions > 0.0) ? (statCounters.instructionExecutions[x] / statCounters.cellExecutions) : 0.0);
+		printf(",%.4f",(statCounters.cellExecutions > 0.0) ? (statCounters.instructionExecutions[x] / statCounters.cellExecutions) : 0.0); 
 	}
 	
 	/* The last column is the average metabolism per cell execution */
@@ -504,15 +506,13 @@ static void *run(void *targ)
 	while (!exitNow) {
 		/* Increment clock and run reports periodically */
 		/* Clock is incremented at the start, so it starts at 1 */
-		++clock;
-		if (clock == 1000000)
-        {
-            exitNow = 1;
-        }
+		++clock; 
+        exitNow = (clock == 1000000);
+        
         if ((threadNo == 0)&&(!(clock % REPORT_FREQUENCY))) {
 			doReport(clock);
 		}
-
+        
 		/* Introduce a random cell somewhere with a given energy level */
 		/* This is called seeding, and introduces both energy and
 		 * entropy into the substrate. This happens every INFLOW_FREQUENCY
