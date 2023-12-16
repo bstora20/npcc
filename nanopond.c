@@ -408,12 +408,12 @@ static void doReport(const uint64_t clock)
 	printf("%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu",
 		(uint64_t)clock,
 		(uint64_t)totalEnergy,
-		(uint64_t)totalActiveCells,
-		(uint64_t)totalViableReplicators,
-		(uint64_t)maxGeneration,
+		(uint64_t)totalActiveCells, 
+		(uint64_t)totalViableReplicators, 
+		(uint64_t)maxGeneration, 
 		(uint64_t)statCounters.viableCellsReplaced,
 		(uint64_t)statCounters.viableCellsKilled,
-		(uint64_t)statCounters.viableCellShares
+		(uint64_t)statCounters.viableCellShares 
 		);
 	
 	/* The next 16 are the average frequencies of execution for each
@@ -425,7 +425,7 @@ static void doReport(const uint64_t clock)
 	}
 	
 	/* The last column is the average metabolism per cell execution */
-	printf(",%.4f\n",(statCounters.cellExecutions > 0.0) ? (totalMetabolism / statCounters.cellExecutions) : 0.0);
+	printf(",%.4f\n",(statCounters.cellExecutions > 0.0) ? (totalMetabolism / statCounters.cellExecutions) : 0.0); 
 	fflush(stdout);
 	
 	if ((lastTotalViableReplicators > 0)&&(totalViableReplicators == 0))
