@@ -501,7 +501,7 @@ int main() {
             printf("CUDA error: %s\n", cudaGetErrorString(err));
             return -1;
         }
-        cudaMemcpy(statCounters, d_statCounters, sizeof(struct statCounters), cudaMemcpyDeviceToHost);  
+        cudaMemcpy(statCounters, d_statCounters, sizeof(d_statCounters), cudaMemcpyDeviceToHost);  
         cudaMemcpy(h_pond, d_pond, POND_SIZE_X * POND_SIZE_Y * sizeof(struct Cell), cudaMemcpyDeviceToHost);
         doReport(h_pond, statCounters, n);
     }
